@@ -143,6 +143,23 @@ node test/ui-test.js
 环境问题。`Generate()` 会调用上述两个钩子这一点已通过读源码确认（`public/script.js:4505`、
 `public/scripts/openai.js:3052`）。
 
+## 版本与更新
+
+`manifest.json` 里的 `version` **只是显示用的**（酒馆只在扩展列表里把它渲染成一行字，
+见 `public/scripts/extensions.js:918`），没有任何比较逻辑。
+
+酒馆判断"有没有更新"靠的是 **git commit**：`/api/extensions/version` 会
+`git fetch origin` 然后比较 `HEAD` 与 `origin/<branch>` 的差异
+（`src/endpoints/extensions.js:41` 的 `checkIfRepoIsUpToDate`）。
+
+所以：
+
+- 安装 = `git clone`，更新 = `git pull`
+- 想发布新版本，**正常 push commit 就行**，用户点更新按钮即可拿到
+- `auto_update: true` 会让酒馆在启动时自动拉取更新；当前设为 `false`，需要手动点更新
+- **不要删库重建、也不要 force push** —— 已经装过的用户执行 `git pull` 会因为历史
+  分叉而失败，只能卸载重装
+
 ## 许可
 
 AGPL-3.0，与 SillyTavern 一致。
