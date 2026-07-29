@@ -24,6 +24,21 @@
     justify-content: space-between;
     gap: 8px;
     margin: 8px 0 6px;
+    flex-wrap: wrap;
+}
+
+/* 按钮组：横向排布，不允许文字折行（否则窄面板里会被压成竖排单字） */
+.api-rotator-settings .apirot-btns {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.api-rotator-settings .menu_button {
+    white-space: nowrap;
+    width: auto;
+    flex-shrink: 0;
 }
 
 .api-rotator-settings .apirot-card {
