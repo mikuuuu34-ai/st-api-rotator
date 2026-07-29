@@ -1,0 +1,128 @@
+.api-rotator-settings .apirot-hint {
+    font-size: 0.85em;
+    opacity: 0.75;
+    margin: 4px 0 8px;
+    line-height: 1.5;
+}
+
+.api-rotator-settings .apirot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.api-rotator-settings label small {
+    opacity: 0.65;
+    font-weight: normal;
+    margin-left: 4px;
+}
+
+.api-rotator-settings .apirot-row-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 8px 0 6px;
+}
+
+.api-rotator-settings .apirot-card {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+
+.api-rotator-settings .apirot-card-dead {
+    opacity: 0.55;
+    border-style: dashed;
+}
+
+.api-rotator-settings .apirot-card-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.api-rotator-settings .apirot-card-head .ep-name {
+    flex: 1;
+    min-width: 60px;
+}
+
+.api-rotator-settings .apirot-card-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.api-rotator-settings .apirot-inline {
+    margin: 0;
+    padding: 0;
+}
+
+.api-rotator-settings .apirot-badge {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: var(--black30a);
+    white-space: nowrap;
+}
+
+.api-rotator-settings .apirot-keys {
+    margin: 4px 0;
+}
+
+.api-rotator-settings .apirot-key {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 0.85em;
+}
+
+.api-rotator-settings .apirot-key.bad {
+    opacity: 0.5;
+}
+
+.api-rotator-settings .apirot-keyval {
+    flex: 1;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.api-rotator-settings .apirot-keystate,
+.api-rotator-settings .apirot-keystat {
+    font-size: 0.9em;
+    opacity: 0.8;
+    white-space: nowrap;
+}
+
+.api-rotator-settings .apirot-key .menu_button {
+    padding: 2px 5px;
+    margin: 0;
+    font-size: 0.9em;
+}
+
+.api-rotator-settings .apirot-empty {
+    opacity: 0.6;
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 6px 0;
+}
+
+.api-rotator-settings .apirot-status {
+    font-size: 0.85em;
+    line-height: 1.7;
+}
+
+.api-rotator-settings .apirot-warn {
+    color: var(--warning, #e0a030);
+}
+
+.api-rotator-settings textarea.ep-newkeys {
+    width: 100%;
+    margin-top: 4px;
+    font-family: monospace;
+    font-size: 0.85em;
+}

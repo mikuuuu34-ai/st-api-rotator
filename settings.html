@@ -1,0 +1,109 @@
+<div class="api-rotator-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>API 轮询</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+
+            <label class="checkbox_label" for="apirot_enabled">
+                <input type="checkbox" id="apirot_enabled">
+                <span>启用轮询</span>
+            </label>
+            <div class="apirot-hint">
+                只接管<b>主聊天生成</b>。总结、翻译、向量化等其他插件的请求不受影响，仍走酒馆自身的 API 设置。
+            </div>
+
+            <hr class="sysHR">
+
+            <div class="apirot-grid">
+                <div>
+                    <label for="apirot_mode">轮询方式</label>
+                    <select id="apirot_mode" class="text_pole">
+                        <option value="nested">嵌套：先轮 API，再轮该 API 内的 key</option>
+                        <option value="flat">展平：把所有 (API, key) 组合平铺轮询</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="apirot_strategy">选择策略</label>
+                    <select id="apirot_strategy" class="text_pole">
+                        <option value="round_robin">依次轮询</option>
+                        <option value="random">随机</option>
+                        <option value="weighted">按权重随机</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr class="sysHR">
+
+            <div>
+                <label for="apirot_onfailure">请求失败时（429 / 5xx / 超时）</label>
+                <select id="apirot_onfailure" class="text_pole">
+                    <option value="next">自动换下一个 key/API 重试</option>
+                    <option value="error">直接报错，不重试</option>
+                </select>
+            </div>
+
+            <div class="apirot-grid apirot-retry-only">
+                <div>
+                    <label for="apirot_maxretries">最大重试次数</label>
+                    <input type="number" id="apirot_maxretries" class="text_pole" min="0" max="20" step="1">
+                </div>
+                <div>
+                    <label for="apirot_cooldown">失败后冷却（秒，0=不冷却）</label>
+                    <input type="number" id="apirot_cooldown" class="text_pole" min="0" step="10">
+                </div>
+            </div>
+
+            <label class="checkbox_label apirot-retry-only" for="apirot_prefersame">
+                <input type="checkbox" id="apirot_prefersame">
+                <span>重试时优先选同类型端点<small>（避免厂商专有参数不匹配）</small></span>
+            </label>
+
+            <label class="checkbox_label" for="apirot_blacklist">
+                <input type="checkbox" id="apirot_blacklist">
+                <span>失败即永久停用该 key<small>（需手动恢复，替代冷却）</small></span>
+            </label>
+
+            <label class="checkbox_label" for="apirot_quiet">
+                <input type="checkbox" id="apirot_quiet">
+                <span>同时接管后台请求<small>（总结等 quiet 类型，默认关闭）</small></span>
+            </label>
+
+            <label class="checkbox_label" for="apirot_log">
+                <input type="checkbox" id="apirot_log">
+                <span>在控制台打印每次选用的端点与 key</span>
+            </label>
+
+            <hr class="sysHR">
+
+            <div class="apirot-row-between">
+                <b>端点列表</b>
+                <div>
+                    <div id="apirot_add" class="menu_button" title="新增端点">
+                        <i class="fa-solid fa-plus"></i> 新增
+                    </div>
+                    <div id="apirot_import" class="menu_button" title="从 JSON 导入">
+                        <i class="fa-solid fa-file-import"></i>
+                    </div>
+                    <div id="apirot_export" class="menu_button" title="导出为 JSON">
+                        <i class="fa-solid fa-file-export"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div id="apirot_endpoints"></div>
+
+            <hr class="sysHR">
+
+            <div class="apirot-row-between">
+                <b>状态</b>
+                <div id="apirot_reset" class="menu_button" title="清零计数并解除所有冷却/黑名单">
+                    <i class="fa-solid fa-rotate-left"></i> 重置状态
+                </div>
+            </div>
+            <div id="apirot_status" class="apirot-status"></div>
+
+        </div>
+    </div>
+</div>

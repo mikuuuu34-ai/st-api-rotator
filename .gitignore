@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+
+# 导出的配置里含明文 key，别误提交
+api-rotator-config.json

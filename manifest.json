@@ -1,0 +1,13 @@
+{
+    "display_name": "API 轮询 (API Rotator)",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "generated-for-user",
+    "version": "1.0.0",
+    "homePage": "https://github.com/YOUR_NAME/st-api-rotator",
+    "auto_update": false,
+    "generate_interceptor": "apiRotatorInterceptor"
+}
