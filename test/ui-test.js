@@ -25,10 +25,16 @@ await p.waitForFunction('typeof globalThis.apiRotatorInterceptor === "function"'
 await new Promise(r=>setTimeout(r,2500));
 let pass=0,fail=0; const ck=(n,c,d='')=>{ if(c){pass++;console.log('  ✅ '+n);} else {fail++;console.log('  ❌ '+n+(d?' — '+d:''));} };
 
-// 清空配置，从零开始点 UI
-await p.evaluate(()=>{ globalThis.SillyTavern.getContext().extensionSettings.apiRotator=undefined; location.reload(); });
-await p.waitForFunction('typeof globalThis.apiRotatorInterceptor === "function"',{timeout:60000});
-await new Promise(r=>setTimeout(r,2500));
+// 清空端点，从零开始点 UI。
+// 不能用 location.reload() —— 重载会从服务端 settings.json 把已有配置读回来，
+// 让测试依赖外部状态。这里改为清空内存中的端点，再用「重置状态」按钮
+// 触发一次重渲染（走的是插件自己的公开 UI 路径）。
+await p.evaluate(()=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  s.endpoints=[]; s.cursor=0; s.flatCursor=0;
+  globalThis.jQuery('#apirot_reset').trigger('click');
+});
+await new Promise(r=>setTimeout(r,600));
 
 console.log('[UI] 从空配置开始点击操作');
 ck('初始显示空状态提示', await p.evaluate(()=>!!document.querySelector('.apirot-empty')));
