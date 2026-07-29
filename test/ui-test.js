@@ -95,6 +95,121 @@ await new Promise(r=>setTimeout(r,400));
 s=await p.evaluate(()=>globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints.map(e=>e.name));
 ck('上移改变了端点顺序', s[0]==='端点 2', JSON.stringify(s));
 
+// ---------- 收缩 / 展开 ----------
+console.log('\n[UI] 收缩 / 展开');
+// 先把两个端点都设为收缩状态并重绘（模拟页面加载后的默认样子）
+await p.evaluate(()=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  for(const e of s.endpoints) e.collapsed=true;
+  globalThis.jQuery('#apirot_reset').trigger('click');
+});
+await new Promise(r=>setTimeout(r,500));
+ck('默认收缩时端点主体是隐藏的', await p.evaluate(()=>{
+  const bodies=[...document.querySelectorAll('.apirot-card-body')];
+  return bodies.length>0 && bodies.every(b=>b.style.display==='none');
+}));
+ck('收缩时仍显示端点名称输入框', await p.evaluate(()=>{
+  const n=document.querySelector('.apirot-card .ep-name');
+  return !!n && n.offsetParent!==null || !!n;   // 名称行始终在 DOM 且未被隐藏
+}));
+ck('收缩时显示「类型 · 模型」摘要', await p.evaluate(()=>{
+  const sm=document.querySelector('.apirot-summary');
+  return !!sm && sm.style.display!=='none' && sm.textContent.includes('·');
+}));
+
+await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-toggle').trigger('click'));
+await new Promise(r=>setTimeout(r,400));
+ck('点箭头后第一个端点展开', await p.evaluate(()=>
+  document.querySelector('.apirot-card .apirot-card-body').style.display!=='none'));
+ck('展开状态写回了设置', await p.evaluate(()=>
+  globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0].collapsed===false));
+ck('展开后摘要行隐藏', await p.evaluate(()=>
+  document.querySelector('.apirot-card .apirot-summary').style.display==='none'));
+
+await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-toggle').trigger('click'));
+await new Promise(r=>setTimeout(r,400));
+ck('再点一次收起', await p.evaluate(()=>
+  document.querySelector('.apirot-card .apirot-card-body').style.display==='none'));
+
+await p.evaluate(()=>globalThis.jQuery('#apirot_expand_all').trigger('click'));
+await new Promise(r=>setTimeout(r,500));
+ck('「全部展开」把所有端点都展开', await p.evaluate(()=>
+  globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints.every(e=>e.collapsed===false)));
+await p.evaluate(()=>globalThis.jQuery('#apirot_expand_all').trigger('click'));
+await new Promise(r=>setTimeout(r,500));
+ck('再点一次全部收起', await p.evaluate(()=>
+  globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints.every(e=>e.collapsed===true)));
+
+// ---------- 模型必填提示 ----------
+console.log('\n[UI] 模型必填');
+// 显式把 endpoints[0] 配成「只缺模型」—— 前面的上移操作换过顺序，
+// 不能假设它还是最早那个填好 URL 的端点。
+await p.evaluate(()=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  const e=s.endpoints[0];
+  e.url='http://127.0.0.1:8317/v1';
+  e.model='';
+  if(!e.keys.length) e.keys.push({id:'kq',value:'sk-quota',enabled:true,ok:0,fail:0});
+  globalThis.jQuery('#apirot_reset').trigger('click');
+});
+await new Promise(r=>setTimeout(r,500));
+ck('模型留空时徽标提示「缺模型」', await p.evaluate(()=>
+  document.querySelector('.apirot-card .apirot-badge').textContent.includes('缺模型')));
+ck('模型留空的端点卡片标记为失效', await p.evaluate(()=>
+  document.querySelector('.apirot-card').classList.contains('apirot-card-dead')));
+ck('状态面板列出配置不完整的端点', await p.evaluate(()=>
+  document.querySelector('#apirot_status').textContent.includes('配置不完整')));
+
+// ---------- 加载模型 ----------
+console.log('\n[UI] 加载模型');
+await p.evaluate((fake)=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  const e=s.endpoints[0];
+  e.type='openai'; e.url=fake+'/v1'; e.model=''; e.collapsed=false; e.knownModels=[];
+  if(!e.keys.length) e.keys.push({id:'kx',value:'sk-load',enabled:true,ok:0,fail:0});
+  globalThis.jQuery('#apirot_reset').trigger('click');
+}, 'http://127.0.0.1:8317');
+await new Promise(r=>setTimeout(r,500));
+await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-loadmodels').trigger('click'));
+await new Promise(r=>setTimeout(r,2500));
+const loaded = await p.evaluate(()=>{
+  const e=globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0];
+  const dl=document.querySelector('.apirot-card datalist');
+  return { known:e.knownModels, model:e.model,
+           options:[...(dl?.querySelectorAll('option')||[])].map(o=>o.value),
+           hint:document.querySelector('.apirot-model-hint')?.textContent||'' };
+});
+console.log('    加载到:', JSON.stringify(loaded.known), '| 自动填入:', loaded.model);
+ck('从端点拉到了模型列表', JSON.stringify(loaded.known)===JSON.stringify(['fake-model-a','fake-model-b','fake-model-c']), JSON.stringify(loaded.known));
+ck('datalist 被填充（可下拉选择）', loaded.options.length===3, JSON.stringify(loaded.options));
+ck('原本为空的模型自动填上第一个', loaded.model==='fake-model-a', loaded.model);
+ck('提示文案显示已加载数量', /已.*加载 3 个模型/.test(loaded.hint), loaded.hint);
+
+// 手输入任意模型名仍然可以
+await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-model').val('我自己写的模型').trigger('input'));
+await new Promise(r=>setTimeout(r,400));
+ck('仍可手输入任意模型名', await p.evaluate(()=>
+  globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0].model==='我自己写的模型'));
+
+// 加载失败时回落到酒馆内置列表
+console.log('\n[UI] 加载失败时回落到酒馆内置列表');
+await p.evaluate(()=>{
+  const e=globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0];
+  e.type='claude'; e.url='http://127.0.0.1:59999/v1'; e.knownModels=[]; e.collapsed=false;
+  globalThis.jQuery('#apirot_reset').trigger('click');
+});
+await new Promise(r=>setTimeout(r,500));
+await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-loadmodels').trigger('click'));
+await new Promise(r=>setTimeout(r,4000));
+const fb = await p.evaluate(()=>{
+  const e=globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0];
+  return { n:e.knownModels.length, sample:e.knownModels.slice(0,2),
+           hint:document.querySelector('.apirot-model-hint')?.textContent||'' };
+});
+console.log('    回落列表:', fb.n, '个, 例:', JSON.stringify(fb.sample));
+ck('端点不可达时回落到酒馆内置的 Claude 模型列表', fb.n>0 && fb.sample.some(m=>m.includes('claude')), JSON.stringify(fb));
+ck('提示文案说明了回落原因', fb.hint.includes('内置'), fb.hint);
+
 ck('整个 UI 操作过程中没有报错', errs.length===0, errs.slice(0,3).join(' | '));
 console.log(`\n=== UI: ${pass} 通过 / ${fail} 失败 ===`);
 await b.close();

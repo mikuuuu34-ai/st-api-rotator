@@ -16,18 +16,18 @@
  */
 
 import { extension_settings, getContext } from '../../../extensions.js';
-import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
+import { saveSettingsDebounced, eventSource, event_types, getRequestHeaders } from '../../../../script.js';
 
 import {
     ENDPOINT_TYPES, defaultSettings,
     normalizeSettings, normalizeEndpoint, uid,
-    isKeyAvailable, availableKeys, isEndpointAvailable, pairId,
+    isKeyAvailable, availableKeys, isEndpointAvailable, endpointIssues, pairId,
     pickNextFrom, maskKey, trimUrl, reviveKey, resetAllStats as resetStatsIn,
 } from './selector.js';
 
 export {
     ENDPOINT_TYPES, defaultSettings, normalizeEndpoint, uid,
-    isKeyAvailable, availableKeys, isEndpointAvailable, maskKey, trimUrl, reviveKey,
+    isKeyAvailable, availableKeys, isEndpointAvailable, endpointIssues, maskKey, trimUrl, reviveKey,
 };
 
 export const MODULE_KEY = 'apiRotator';
@@ -94,7 +94,7 @@ function applyPick(pick) {
     snapField(o, 'chat_completion_source');
     snapField(o, t.modelField);
     o.chat_completion_source = t.source;
-    if (pick.endpoint.model) o[t.modelField] = pick.endpoint.model;
+    o[t.modelField] = pick.endpoint.model;
 }
 
 export function restoreSettings() {
@@ -110,12 +110,72 @@ function applyToRequest(data, pick) {
     data.chat_completion_source = t.source;
     data.reverse_proxy = trimUrl(pick.endpoint.url);
     data.proxy_password = pick.key.value;
-    if (pick.endpoint.model) data.model = pick.endpoint.model;
+    data.model = pick.endpoint.model;   // 必填项，isEndpointAvailable 已保证非空
     data[ROTATOR_TAG] = true;
 }
 
 export function describe(pick) {
-    return `${pick.endpoint.name || pick.endpoint.type} / ${pick.key.label || maskKey(pick.key.value)} / ${pick.endpoint.model || '(跟随酒馆)'}`;
+    return `${pick.endpoint.name || pick.endpoint.type} / ${pick.key.label || maskKey(pick.key.value)} / ${pick.endpoint.model}`;
+}
+
+/* ------------------------------------------------------------ 模型列表 */
+
+/**
+ * 从酒馆自带的模型下拉里读一份列表，作为离线兜底。
+ * 这些下拉随酒馆版本更新，比在插件里硬编码一份要准。
+ */
+export function builtinModels(type) {
+    const id = ENDPOINT_TYPES[type]?.modelSelectId;
+    if (!id) return [];
+    const el = document.getElementById(id);
+    if (!el) return [];
+    return [...el.querySelectorAll('option')]
+        .map(o => o.value)
+        .filter(v => v && !v.startsWith('#'));
+}
+
+/**
+ * 在线拉取某个端点真实可用的模型列表。
+ *
+ * 走酒馆的 /api/backends/chat-completions/status —— 它同样吃
+ * reverse_proxy + proxy_password（见 chat-completions.js:1745），
+ * 所以不需要把 key 存进酒馆、也不受浏览器 CORS 限制。
+ *
+ * 注意：该接口不支持 claude 源（会 400），因此 claude 类型退化成 openai
+ * 形状去探测同一个基址 —— 多数 Claude 中转站同时提供 /v1/models；
+ * 官方 api.anthropic.com 不认 Bearer，会失败，此时调用方应回落到 builtinModels()。
+ *
+ * @returns {Promise<string[]>}
+ */
+export async function fetchModels(endpoint) {
+    const key = availableKeys(endpoint)[0] || (endpoint.keys || [])[0];
+    if (!key?.value) throw new Error('该端点还没有 key，无法拉取模型列表');
+    if (!endpoint.url) throw new Error('请先填写接口地址');
+
+    const t = ENDPOINT_TYPES[endpoint.type];
+    const res = await fetch('/api/backends/chat-completions/status', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({
+            chat_completion_source: t.statusSource,
+            reverse_proxy: trimUrl(endpoint.url),
+            proxy_password: key.value,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`接口返回 HTTP ${res.status}`);
+    }
+
+    const json = await res.json().catch(() => null);
+    const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+    const ids = list
+        .map(m => (typeof m === 'string' ? m : m?.id || m?.name))
+        .filter(Boolean)
+        .map(String);
+
+    if (!ids.length) throw new Error('接口没有返回任何模型');
+    return [...new Set(ids)].sort();
 }
 
 /* --------------------------------------------------------- 成败与冷却 */

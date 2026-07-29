@@ -141,3 +141,59 @@
     font-family: monospace;
     font-size: 0.85em;
 }
+
+/* ---------------------------------------------------- 收起 / 展开 */
+
+.api-rotator-settings .apirot-chevron {
+    cursor: pointer;
+    padding: 2px 4px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.api-rotator-settings .apirot-chevron:hover {
+    opacity: 1;
+}
+
+.api-rotator-settings .apirot-collapsed {
+    padding-bottom: 4px;
+}
+
+/* 收起时显示的一行摘要：类型 · 模型 */
+.api-rotator-settings .apirot-summary {
+    font-size: 0.78em;
+    opacity: 0.6;
+    padding: 0 0 2px 26px;
+    overflow-wrap: anywhere;
+}
+
+.api-rotator-settings .apirot-badge-warn {
+    background: var(--warning, #e0a030);
+    color: #000;
+    font-weight: 600;
+}
+
+/* ------------------------------------------------------- 模型输入 */
+
+.api-rotator-settings .apirot-model-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.api-rotator-settings .apirot-model-row .ep-model {
+    flex: 1;
+    min-width: 0;
+}
+
+.api-rotator-settings .apirot-model-hint {
+    font-size: 0.75em;
+    opacity: 0.6;
+    margin: 3px 0 6px;
+    line-height: 1.4;
+}
+
+.api-rotator-settings .menu_button.disabled {
+    pointer-events: none;
+    opacity: 0.6;
+}

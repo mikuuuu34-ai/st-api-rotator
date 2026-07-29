@@ -100,6 +100,21 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, cors); return res.end('ok');
     }
 
+    // ---- 模型列表（GET {base}/models，Gemini 是 {base}/v1beta/models）----
+    if (req.method === 'GET' && /\/models\/?$/.test(url.pathname)) {
+        const key = extractKey(req, url);
+        if (failRule.keys.has(key)) {
+            res.writeHead(failRule.status, { 'Content-Type': 'application/json', ...cors });
+            return res.end(JSON.stringify({ error: { message: 'fake failure' } }));
+        }
+        log.push({ seq: log.length + 1, method: 'GET', path: url.pathname, kind: 'models', key });
+        const isGemini = url.pathname.includes('v1beta');
+        res.writeHead(200, { 'Content-Type': 'application/json', ...cors });
+        return res.end(JSON.stringify(isGemini
+            ? { models: [{ name: 'models/fake-gemini-a' }, { name: 'models/fake-gemini-b' }] }
+            : { data: [{ id: 'fake-model-a' }, { id: 'fake-model-b' }, { id: 'fake-model-c' }] }));
+    }
+
     // ---- 模拟厂商接口 ----
     const raw = await readBody(req);
     let body = {};

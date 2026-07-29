@@ -29,9 +29,28 @@ SillyTavern 扩展。多 API + 多 key 轮询，支持嵌套、每个端点独�
      - OpenAI 兼容 → `https://your-proxy.com/v1`
      - Claude → `https://api.anthropic.com/v1`
      - Gemini → `https://generativelanguage.googleapis.com`
-   - **模型**：留空则跟随酒馆当前模型
-   - **密钥**：在文本框里每行粘一个 key，点「添加这些 key」
+   - **密钥**：在文本框里每行粘一个 key，点「添加这些 key」（自动去重）
+   - **模型**：**必填**。可以直接手输入，也可以点「加载」从该端点拉取真实可用的
+     模型列表，然后在输入框下拉选择
 3. 需要多个 API 就重复第 2 步
+
+端点默认**收起**，只显示一行「名称 + 类型 · 模型 + key 可用数」，点左侧箭头展开。
+右上角的双箭头按钮可以一键全部展开/收起。配置不完整的端点会在徽标上直接标出
+缺什么（缺接口地址 / 缺模型 / 没有可用 key），并且不会被轮询选中。
+
+### 关于「加载」模型
+
+走的是酒馆的 `/api/backends/chat-completions/status`，用同一套
+`reverse_proxy` + `proxy_password` 覆盖，所以不需要把 key 存进酒馆，也没有浏览器
+跨域问题。
+
+- **OpenAI 兼容 / Gemini**：直接拉该端点真实返回的列表（中转站的自定义模型名靠这个）
+- **Claude**：酒馆的这个接口不支持 claude 源，插件会退化成 OpenAI 形状去探测同一个
+  基址（多数 Claude 中转站也提供 `/v1/models`）。官方 `api.anthropic.com` 不认
+  Bearer 认证，探测会失败 —— 此时自动回落到**酒馆内置的 Claude 模型列表**，并在
+  提示里说明原因。
+
+无论哪种情况，**模型名都可以手输入**，不受列表限制。
 
 **轮询方式**
 - `嵌套`：先在端点之间轮，再在选中端点内部轮它的 key
@@ -106,12 +125,16 @@ node test/backend-test.js
 
 # 3. 浏览器端到端，另需 chromium + puppeteer-core
 node test/e2e-test.js
+node test/ui-test.js
 ```
+
+浏览器测试需要 `puppeteer-core`。若它不在常规解析路径下，用
+`PUPPETEER_PATH=/abs/path/to/puppeteer-core.js` 指定；浏览器路径用 `CHROME_PATH`。
 
 `test/fake-api.js` 是一个假的多厂商 API 服务，会记录收到的每个请求（路径 / key / model），
 并可通过 `POST /__fail` 让指定 key 返回 429，用于验证失败切换。
 
-当前状态：**selector 17/17，后端集成 16/16，浏览器端到端 25/25**。
+当前状态：**selector 22/22，后端集成 16/16，浏览器端到端 25/25，UI 交互 32/32**。
 其中端到端测试会真的调用酒馆自己的 `runGenerationInterceptors()` 与真实 `eventSource`，
 并断言连发 6 条消息时假 API 收到的 key 序列为 `1,2,3,1,2,3`。
 

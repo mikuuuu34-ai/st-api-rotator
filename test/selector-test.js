@@ -11,7 +11,7 @@
  */
 
 import {
-    normalizeSettings, pickNextFrom, pairId, defaultSettings,
+    normalizeSettings, pickNextFrom, pairId, defaultSettings, endpointIssues,
 } from '../selector.js';
 
 let pass = 0, fail = 0;
@@ -188,7 +188,27 @@ console.log('\n[10] 边界：空配置 / 无 key / 无 URL');
     check('端点没有 URL → null', pickNextFrom(noUrl, new Set()) === null);
 }
 
-console.log('\n[11] 权重分配大致符合预期');
+console.log('\n[11] 模型是必填项（旧版「留空跟随酒馆」的回退已移除）');
+{
+    const s = makeSettings([{ name: 'A', keys: ['k1'] }]);
+    check('填了模型时可用', pickNextFrom(s, new Set()) !== null);
+
+    s.endpoints[0].model = '';
+    check('模型留空 → 该端点不可用', pickNextFrom(s, new Set()) === null);
+
+    const s2 = makeSettings([
+        { name: 'A', keys: ['a1'] },
+        { name: 'B', keys: ['b1'] },
+    ]);
+    s2.endpoints[0].model = '';
+    eq('只轮到配了模型的那个端点', sequence(s2, 3), ['b1', 'b1', 'b1']);
+
+    const issues = endpointIssues({ url: '', model: '', keys: [] });
+    check('endpointIssues 能列出缺失项', issues.length === 3, JSON.stringify(issues));
+    eq('缺失项文案', endpointIssues({ url: 'x', model: '', keys: [{ value: 'k', enabled: true }] }), ['缺模型']);
+}
+
+console.log('\n[12] 权重分配大致符合预期');
 {
     const s = makeSettings([
         { name: 'A', keys: ['a1'], weight: 9 },

@@ -16,18 +16,29 @@ export const ENDPOINT_TYPES = {
         modelField: 'openai_model',
         label: 'OpenAI 兼容',
         urlHint: 'https://api.openai.com/v1',
+        // 酒馆 /api/backends/chat-completions/status 支持的源，用于在线拉取模型列表
+        statusSource: 'openai',
+        // 酒馆自带的模型下拉，用作离线兜底
+        modelSelectId: 'model_openai_select',
     },
     claude: {
         source: 'claude',
         modelField: 'claude_model',
         label: 'Claude',
         urlHint: 'https://api.anthropic.com/v1',
+        // 酒馆的 /status 不支持 claude 源（会返回 400）。多数 Claude 中转站同时
+        // 提供 OpenAI 形状的 /v1/models，所以退化成 openai 形状去探测；
+        // 探测失败时回落到 modelSelectId 的内置列表。
+        statusSource: 'openai',
+        modelSelectId: 'model_claude_select',
     },
     gemini: {
         source: 'makersuite',
         modelField: 'google_model',
         label: 'Gemini',
         urlHint: 'https://generativelanguage.googleapis.com',
+        statusSource: 'makersuite',
+        modelSelectId: 'model_google_select',
     },
 };
 
@@ -59,6 +70,8 @@ export function normalizeEndpoint(e) {
     if (typeof e.cursor !== 'number') e.cursor = 0;
     if (!e.keyStrategy) e.keyStrategy = 'round_robin';
     if (!(Number(e.weight) > 0)) e.weight = 1;
+    if (e.collapsed === undefined) e.collapsed = true;   // 默认收缩，避免端点多时占满面板
+    if (!Array.isArray(e.knownModels)) e.knownModels = [];
     for (const k of e.keys) {
         if (!k.id) k.id = uid();
         if (k.enabled === undefined) k.enabled = true;
@@ -90,8 +103,23 @@ export function availableKeys(e, now = Date.now()) {
     return (e.keys || []).filter(k => isKeyAvailable(k, now));
 }
 
+/**
+ * 端点是否可用。模型是必填项 —— 早期版本允许留空并「跟随酒馆当前模型」，
+ * 但那个回退没有实际意义（轮询到不同厂商时酒馆的当前模型必然对不上），
+ * 只会让请求以难以察觉的方式发错模型，因此改为必填。
+ */
 export function isEndpointAvailable(e, now = Date.now()) {
-    return !!e && e.enabled !== false && !!e.url && availableKeys(e, now).length > 0;
+    return !!e && e.enabled !== false && !!e.url && !!e.model && availableKeys(e, now).length > 0;
+}
+
+/** 端点缺什么，用于 UI 提示 */
+export function endpointIssues(e) {
+    const out = [];
+    if (!e.url) out.push('缺接口地址');
+    if (!e.model) out.push('缺模型');
+    if (!(e.keys || []).length) out.push('没有 key');
+    else if (availableKeys(e).length === 0) out.push('没有可用 key');
+    return out;
 }
 
 export const pairId = (e, k) => `${e.id}:${k.id}`;
