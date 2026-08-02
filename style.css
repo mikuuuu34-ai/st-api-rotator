@@ -197,3 +197,98 @@
     pointer-events: none;
     opacity: 0.6;
 }
+
+/* ---------------------------------------------------------- 运行日志 */
+
+.api-rotator-settings .apirot-log-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.api-rotator-settings .apirot-log-meta {
+    font-size: 0.78em;
+    opacity: 0.65;
+    margin: 6px 0 4px;
+}
+
+.api-rotator-settings .apirot-log-list {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 0.78em;
+    line-height: 1.5;
+}
+
+.api-rotator-settings .apirot-log-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 0 2px 6px;
+    border-left: 3px solid transparent;
+}
+
+.api-rotator-settings .apirot-log-clickable {
+    cursor: pointer;
+}
+
+.api-rotator-settings .apirot-log-clickable:hover {
+    background: var(--black30a);
+}
+
+/* 时间与批次号用等宽，多行之间才能对齐着扫 */
+.api-rotator-settings .apirot-log-time,
+.api-rotator-settings .apirot-log-gen {
+    font-family: monospace;
+    white-space: nowrap;
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.api-rotator-settings .apirot-log-gen {
+    min-width: 2.6em;
+    opacity: 0.9;
+}
+
+.api-rotator-settings .apirot-log-ev {
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.85;
+    min-width: 5.5em;
+}
+
+.api-rotator-settings .apirot-log-msg {
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+
+.api-rotator-settings .apirot-log-detail {
+    font-family: monospace;
+    font-size: 0.92em;
+    opacity: 0.7;
+    padding: 2px 0 6px 24px;
+    overflow-wrap: anywhere;
+}
+
+/* 级别配色：warn / error 要能在一屏日志里一眼跳出来 */
+.api-rotator-settings .apirot-lvl-debug {
+    opacity: 0.55;
+}
+
+.api-rotator-settings .apirot-lvl-warn {
+    border-left-color: var(--warning, #e0a030);
+}
+
+.api-rotator-settings .apirot-lvl-warn .apirot-log-msg {
+    color: var(--warning, #e0a030);
+}
+
+.api-rotator-settings .apirot-lvl-error {
+    border-left-color: var(--fullred, #d04040);
+}
+
+.api-rotator-settings .apirot-lvl-error .apirot-log-msg {
+    color: var(--fullred, #d04040);
+}

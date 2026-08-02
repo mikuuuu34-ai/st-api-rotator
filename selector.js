@@ -18,8 +18,6 @@ export const ENDPOINT_TYPES = {
         urlHint: 'https://api.openai.com/v1',
         // 酒馆 /api/backends/chat-completions/status 支持的源，用于在线拉取模型列表
         statusSource: 'openai',
-        // 酒馆自带的模型下拉，用作离线兜底
-        modelSelectId: 'model_openai_select',
     },
     claude: {
         source: 'claude',
@@ -28,9 +26,9 @@ export const ENDPOINT_TYPES = {
         urlHint: 'https://api.anthropic.com/v1',
         // 酒馆的 /status 不支持 claude 源（会返回 400）。多数 Claude 中转站同时
         // 提供 OpenAI 形状的 /v1/models，所以退化成 openai 形状去探测；
-        // 探测失败时回落到 modelSelectId 的内置列表。
+        // 探测不到就如实报错，不猜测型号（旧版会回落到酒馆内置列表，那会让人
+        // 误以为端点已经连通）。
         statusSource: 'openai',
-        modelSelectId: 'model_claude_select',
     },
     gemini: {
         source: 'makersuite',
@@ -38,7 +36,6 @@ export const ENDPOINT_TYPES = {
         label: 'Gemini',
         urlHint: 'https://generativelanguage.googleapis.com',
         statusSource: 'makersuite',
-        modelSelectId: 'model_google_select',
     },
 };
 
@@ -52,7 +49,14 @@ export const defaultSettings = {
     cooldownSeconds: 300,
     blacklistOnFail: false,
     preferSameTypeOnRetry: true,
-    logRequests: true,
+    logRequests: true,         // 往浏览器控制台打印
+    // 运行日志面板（条目本身存 localStorage，这里只存开关，见 log.js 顶部说明）
+    logEnabled: true,
+    logMax: 1000,
+    logPersist: true,          // 刷新后保留
+    logVerbose: false,         // 连 debug 级事件也记
+    logFilter: 'all',          // all | warn
+    logCollapsed: true,        // 面板默认收起
     endpoints: [],
     cursor: 0,
     flatCursor: 0,

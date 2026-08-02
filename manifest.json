@@ -6,8 +6,8 @@
     "js": "index.js",
     "css": "style.css",
     "author": "generated-for-user",
-    "version": "1.0.0",
-    "homePage": "https://github.com/YOUR_NAME/st-api-rotator",
+    "version": "1.1.0",
+    "homePage": "https://github.com/mikuuuu34-ai/st-api-rotator",
     "auto_update": false,
     "generate_interceptor": "apiRotatorInterceptor"
 }

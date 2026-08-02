@@ -109,6 +109,69 @@
             </div>
             <div id="apirot_status" class="apirot-status"></div>
 
+            <hr class="sysHR">
+
+            <div class="apirot-row-between">
+                <div class="apirot-log-head">
+                    <div id="apirot_log_toggle" class="apirot-chevron" title="展开 / 收起">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </div>
+                    <b>运行日志</b>
+                    <span id="apirot_log_count" class="apirot-badge"></span>
+                </div>
+                <div class="apirot-btns">
+                    <div id="apirot_log_export" class="menu_button" title="把全部日志导出成文件">
+                        <i class="fa-solid fa-download"></i> 导出
+                    </div>
+                    <div id="apirot_log_copy" class="menu_button" title="复制全部日志到剪贴板">
+                        <i class="fa-solid fa-copy"></i>
+                    </div>
+                    <div id="apirot_log_clear" class="menu_button" title="清空日志">
+                        <i class="fa-solid fa-trash"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div id="apirot_log_body">
+                <div class="apirot-hint">
+                    记录每次生成的轮询过程：选中了哪个端点和 key、请求有没有真的带上轮询参数、
+                    有没有请求绕过了轮询、两次生成有没有串台。
+                    <b>不记录任何消息内容</b>，key 一律掩码显示。
+                </div>
+
+                <label class="checkbox_label" for="apirot_log_enabled">
+                    <input type="checkbox" id="apirot_log_enabled">
+                    <span>记录运行日志</span>
+                </label>
+
+                <label class="checkbox_label" for="apirot_log_persist">
+                    <input type="checkbox" id="apirot_log_persist">
+                    <span>刷新后保留<small>（存在浏览器本地，不写进酒馆配置文件）</small></span>
+                </label>
+
+                <label class="checkbox_label" for="apirot_log_verbose">
+                    <input type="checkbox" id="apirot_log_verbose">
+                    <span>详细模式<small>（连全局设置的改写与还原也记下来）</small></span>
+                </label>
+
+                <div class="apirot-grid">
+                    <div>
+                        <label for="apirot_log_max">最大保留条数</label>
+                        <input type="number" id="apirot_log_max" class="text_pole" min="10" max="20000" step="100">
+                    </div>
+                    <div>
+                        <label for="apirot_log_filter">只看</label>
+                        <select id="apirot_log_filter" class="text_pole">
+                            <option value="all">全部</option>
+                            <option value="warn">警告与错误</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="apirot_log_meta" class="apirot-log-meta"></div>
+                <div id="apirot_log_list" class="apirot-log-list"></div>
+            </div>
+
         </div>
     </div>
 </div>

@@ -8,7 +8,7 @@
  * 自己的 fetch，不经过本插件的任何钩子，因此完全不受影响。
  */
 
-import { getSettings, installHooks } from './engine.js';
+import { getSettings, installHooks, initLog } from './engine.js';
 import { initUi } from './ui.js';
 
 // 必须在模块加载时同步挂上 globalThis.apiRotatorInterceptor，
@@ -18,6 +18,7 @@ installHooks();
 jQuery(async () => {
     try {
         getSettings();
+        initLog();      // 要在 settings.json 读回来之后，否则拿到的还是默认值
         await initUi();
         console.log('[api-rotator] 已加载');
     } catch (err) {

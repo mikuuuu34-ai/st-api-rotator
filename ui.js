@@ -8,8 +8,10 @@ import {
     getSettings, persist, normalizeEndpoint, uid,
     availableKeys, isEndpointAvailable, isKeyAvailable, endpointIssues,
     getCurrentPick, onStateChange, reviveKey, resetAllStats,
-    maskKey, describe, fetchModels, builtinModels,
+    maskKey, describe, fetchModels,
+    logStore, syncLogSettings, flushLog, clearPersistedLog,
 } from './engine.js';
+import { PANEL_MAX, eventLabel, fmtClock } from './log.js';
 
 const $ = globalThis.jQuery;
 
@@ -21,10 +23,13 @@ export async function initUi() {
     $('#extensions_settings').append(html);
 
     bindGlobalControls();
+    bindLogControls();
     renderEndpoints();
     renderStatus();
+    renderLog();
 
     onStateChange(() => { renderStatus(); });
+    logStore.onChange(scheduleLogRender);
     setInterval(renderStatus, 2000); // 冷却倒计时
 }
 
@@ -332,29 +337,21 @@ function refreshCardBadge($card, e) {
 async function loadModelsFor($card, e, $btn) {
     const original = $btn.html();
     $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 加载中').addClass('disabled');
-    const $hint = $card.find('.apirot-model-hint');
+    const $hint = $card.find('.apirot-model-hint').removeClass('apirot-warn');
 
-    let models = [];
-    let note = '';
+    let models;
     try {
         models = await fetchModels(e);
-        note = `已从该端点加载 ${models.length} 个模型`;
     } catch (err) {
-        // 拉取失败就回落到酒馆内置列表：Claude 官方端点不认 Bearer，
-        // 私有中转站也可能没开放 /v1/models，这时至少给出常见型号。
-        const fallback = builtinModels(e.type);
-        if (fallback.length) {
-            models = fallback;
-            note = `无法从该端点获取（${err.message}），已改用酒馆内置的 ${models.length} 个常见模型`;
-            globalThis.toastr?.warning(note, 'API 轮询');
-        } else {
-            $hint.text(`加载失败：${err.message}`);
-            globalThis.toastr?.error(err.message, 'API 轮询');
-            $btn.html(original).removeClass('disabled');
-            return;
-        }
+        // 如实报错，不做任何猜测性回落。早期版本会在失败时填上酒馆内置的常见型号，
+        // 结果是用户看到一堆能选的模型，误以为端点已经连通，其实压根没通。
+        $hint.addClass('apirot-warn').text(`加载失败：${err.message}`);
+        globalThis.toastr?.error(err.message, 'API 轮询：加载模型失败');
+        $btn.html(original).removeClass('disabled');
+        return;
     }
 
+    let note = `已从该端点加载 ${models.length} 个模型`;
     if (models.length > MAX_CACHED_MODELS) {
         note += `（列表过长，只保留前 ${MAX_CACHED_MODELS} 个）`;
         models = models.slice(0, MAX_CACHED_MODELS);
@@ -408,6 +405,182 @@ function renderStatus() {
         ${!s.enabled ? '<div class="apirot-warn">轮询未启用，当前走酒馆自身的 API 设置。</div>' : ''}
         ${s.enabled && usableKeys === 0 ? '<div class="apirot-warn">没有任何可用密钥，生成时会回退到酒馆自身设置。</div>' : ''}
     `);
+}
+
+/* ------------------------------------------------------------- 日志面板 */
+
+function bindLogControls() {
+    const s = getSettings();
+
+    // 日志开关变了要同步给缓冲区（setMax 会顺手裁掉超出的部分）
+    const applyAndRefresh = () => { syncLogSettings(); persist(); renderLog(); };
+
+    $('#apirot_log_enabled').off('change.apirot').prop('checked', s.logEnabled !== false)
+        .on('change.apirot', function () {
+            getSettings().logEnabled = !!$(this).prop('checked');
+            applyAndRefresh();
+        });
+
+    $('#apirot_log_verbose').off('change.apirot').prop('checked', !!s.logVerbose)
+        .on('change.apirot', function () {
+            getSettings().logVerbose = !!$(this).prop('checked');
+            applyAndRefresh();
+        });
+
+    $('#apirot_log_persist').off('change.apirot').prop('checked', s.logPersist !== false)
+        .on('change.apirot', function () {
+            const on = !!$(this).prop('checked');
+            getSettings().logPersist = on;
+            // 关掉就把已经落盘的清掉，不留残余；打开就立刻存一份
+            if (on) flushLog(); else clearPersistedLog();
+            applyAndRefresh();
+        });
+
+    // 只绑 change 不绑 input：否则每敲一个数字就按中间值裁一次日志
+    $('#apirot_log_max').off('change.apirot').val(s.logMax)
+        .on('change.apirot', function () {
+            const applied = logStore.setMax($(this).val());
+            getSettings().logMax = applied;
+            $(this).val(applied);
+            persist();
+            renderLog();
+        });
+
+    $('#apirot_log_filter').off('change.apirot').val(s.logFilter || 'all')
+        .on('change.apirot', function () {
+            getSettings().logFilter = String($(this).val());
+            persist();
+            renderLog();
+        });
+
+    $('#apirot_log_toggle').off('click.apirot').on('click.apirot', () => {
+        const s2 = getSettings();
+        s2.logCollapsed = !s2.logCollapsed;
+        persist();
+        applyLogCollapse();
+        renderLog();
+    });
+
+    $('#apirot_log_export').off('click.apirot').on('click.apirot', exportLog);
+    $('#apirot_log_copy').off('click.apirot').on('click.apirot', copyLog);
+    $('#apirot_log_clear').off('click.apirot').on('click.apirot', () => {
+        if (logStore.size && !confirm(`清空 ${logStore.size} 条日志？`)) return;
+        logStore.clear();
+        clearPersistedLog();
+        renderLog();
+        globalThis.toastr?.success('日志已清空', 'API 轮询');
+    });
+
+    applyLogCollapse();
+}
+
+function applyLogCollapse() {
+    const collapsed = !!getSettings().logCollapsed;
+    $('#apirot_log_body').toggle(!collapsed);
+    $('#apirot_log_toggle i').attr('class', `fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-down'}`);
+}
+
+/**
+ * 生成过程中日志刷得很快（一次生成十来条），每条都重绘会拖慢面板。
+ * 节流到 400ms 一次。
+ */
+let logRenderTimer = null;
+function scheduleLogRender() {
+    if (logRenderTimer) return;
+    logRenderTimer = setTimeout(() => { logRenderTimer = null; renderLog(); }, 400);
+}
+
+function renderLog() {
+    const $list = $('#apirot_log_list');
+    if (!$list.length) return;
+
+    const s = getSettings();
+    const filter = s.logFilter || 'all';
+    const total = logStore.count(filter);
+
+    $('#apirot_log_count').text(`${total} 条`);
+
+    // 收起时只更新计数，不碰列表 DOM
+    if (s.logCollapsed) return;
+
+    $('#apirot_log_meta').text(total > PANEL_MAX
+        ? `共 ${total} 条，面板只显示最近 ${PANEL_MAX} 条；要看全部请点「导出」`
+        : `共 ${total} 条`);
+
+    $list.empty();
+    const rows = logStore.recent(PANEL_MAX, filter);
+    if (!rows.length) {
+        $list.append(`<div class="apirot-empty">${
+            s.logEnabled === false ? '日志记录已关闭' :
+                filter === 'warn' ? '没有警告或错误' : '还没有记录，发一条消息就会有了'
+        }</div>`);
+        return;
+    }
+    for (const e of rows) $list.append(logRow(e));   // recent() 已是最新在前
+}
+
+function logRow(e) {
+    const $row = $(`
+        <div class="apirot-log-row apirot-lvl-${e.level}">
+            <span class="apirot-log-time">${fmtClock(e.t)}</span>
+            <span class="apirot-log-gen" title="生成批次号">${e.gen ? `#${e.gen}` : '—'}</span>
+            <span class="apirot-log-ev">${escapeHtml(eventLabel(e.ev))}</span>
+            <span class="apirot-log-msg">${escapeHtml(e.msg)}</span>
+        </div>
+    `);
+    if (!e.d) return $row;
+
+    const $detail = $('<div class="apirot-log-detail"></div>')
+        .text(JSON.stringify(e.d, null, 1).replace(/\n\s*/g, ' '))
+        .hide();
+    $row.addClass('apirot-log-clickable').attr('title', '点击查看细节').on('click', () => $detail.toggle());
+    return $row.add($detail);
+}
+
+function logFileName() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `api-rotator-log-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+        + `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.txt`;
+}
+
+/** 导出/复制一律给全量，不受面板上的筛选影响 —— 少了上下文的日志没法排查 */
+function logText() {
+    const s = getSettings();
+    return logStore.toText('all', {
+        轮询方式: s.rotateMode === 'flat' ? '展平' : '嵌套',
+        选择策略: s.strategy,
+        失败处理: s.onFailure === 'next' ? `自动换下一个（最多 ${s.maxRetries} 次）` : '直接报错',
+        端点数: s.endpoints.length,
+        密钥数: s.endpoints.reduce((a, e) => a + (e.keys || []).length, 0),
+    });
+}
+
+function exportLog() {
+    if (!logStore.size) {
+        globalThis.toastr?.info('还没有日志可以导出', 'API 轮询');
+        return;
+    }
+    const blob = new Blob([logText()], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = logFileName();
+    a.click();
+    URL.revokeObjectURL(a.href);
+    globalThis.toastr?.success(`已导出全部 ${logStore.size} 条日志`, 'API 轮询');
+}
+
+async function copyLog() {
+    if (!logStore.size) {
+        globalThis.toastr?.info('还没有日志可以复制', 'API 轮询');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(logText());
+        globalThis.toastr?.success(`已复制全部 ${logStore.size} 条日志`, 'API 轮询');
+    } catch (err) {
+        globalThis.toastr?.error(`复制失败（${err.message}），请改用「导出」`, 'API 轮询');
+    }
 }
 
 /* ------------------------------------------------------------ 导入导出 */

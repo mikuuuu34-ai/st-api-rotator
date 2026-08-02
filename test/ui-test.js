@@ -191,24 +191,126 @@ await new Promise(r=>setTimeout(r,400));
 ck('仍可手输入任意模型名', await p.evaluate(()=>
   globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0].model==='我自己写的模型'));
 
-// 加载失败时回落到酒馆内置列表
-console.log('\n[UI] 加载失败时回落到酒馆内置列表');
+// 加载失败：只报原因，不猜测性地填任何模型
+console.log('\n[UI] 加载失败只报原因，不回落');
 await p.evaluate(()=>{
   const e=globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0];
-  e.type='claude'; e.url='http://127.0.0.1:59999/v1'; e.knownModels=[]; e.collapsed=false;
+  // 预置一份「之前加载过的」列表，用来验证失败不会把它冲掉、也不会被内置列表顶替
+  e.type='claude'; e.url='http://127.0.0.1:59999/v1'; e.knownModels=['之前加载过的']; e.collapsed=false;
   globalThis.jQuery('#apirot_reset').trigger('click');
 });
 await new Promise(r=>setTimeout(r,500));
 await p.evaluate(()=>globalThis.jQuery('.apirot-card').first().find('.ep-loadmodels').trigger('click'));
-await new Promise(r=>setTimeout(r,4000));
+await new Promise(r=>setTimeout(r,6000));
 const fb = await p.evaluate(()=>{
   const e=globalThis.SillyTavern.getContext().extensionSettings.apiRotator.endpoints[0];
-  return { n:e.knownModels.length, sample:e.knownModels.slice(0,2),
-           hint:document.querySelector('.apirot-model-hint')?.textContent||'' };
+  const hint=document.querySelector('.apirot-model-hint');
+  return { known:e.knownModels, model:e.model,
+           hint:hint?.textContent||'', warn:!!hint?.classList.contains('apirot-warn'),
+           btn:document.querySelector('.apirot-card .ep-loadmodels')?.textContent.trim()||'',
+           options:[...(document.querySelector('.apirot-card datalist')?.querySelectorAll('option')||[])].length };
 });
-console.log('    回落列表:', fb.n, '个, 例:', JSON.stringify(fb.sample));
-ck('端点不可达时回落到酒馆内置的 Claude 模型列表', fb.n>0 && fb.sample.some(m=>m.includes('claude')), JSON.stringify(fb));
-ck('提示文案说明了回落原因', fb.hint.includes('内置'), fb.hint);
+console.log('    提示文案:', fb.hint);
+ck('失败时一个模型都不填', JSON.stringify(fb.known)===JSON.stringify(['之前加载过的']), JSON.stringify(fb.known));
+ck('提示里不再出现「内置」字样', !fb.hint.includes('内置'), fb.hint);
+ck('提示以「加载失败：」开头', fb.hint.startsWith('加载失败：'), fb.hint);
+ck('失败原因带了具体的 HTTP 状态或连接错误', /HTTP \d{3}|连不上|没有返回任何模型/.test(fb.hint), fb.hint);
+ck('提示标成警告色', fb.warn===true);
+ck('按钮从「加载中」恢复', !fb.btn.includes('加载中'), fb.btn);
+
+// ---------- 运行日志面板 ----------
+console.log('\n[UI] 运行日志面板');
+p.on('dialog', d=>d.accept());   // 「清空日志」有 confirm
+
+ck('日志区块存在', await p.evaluate(()=>!!document.querySelector('#apirot_log_body')));
+ck('日志默认收起', await p.evaluate(()=>document.querySelector('#apirot_log_body').style.display==='none'));
+
+const lgDefaults = await p.evaluate(()=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  return { max:s.logMax, enabled:s.logEnabled, persist:s.logPersist, verbose:s.logVerbose,
+           filter:s.logFilter, inputMax:document.querySelector('#apirot_log_max').value };
+});
+ck('最大记录数默认 1000', lgDefaults.max===1000&&lgDefaults.inputMax==='1000', JSON.stringify(lgDefaults));
+ck('默认开启记录且刷新后保留', lgDefaults.enabled===true&&lgDefaults.persist===true, JSON.stringify(lgDefaults));
+ck('默认非详细模式、不筛选', lgDefaults.verbose===false&&lgDefaults.filter==='all', JSON.stringify(lgDefaults));
+
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_toggle').trigger('click'));
+await new Promise(r=>setTimeout(r,400));
+ck('点箭头后展开', await p.evaluate(()=>document.querySelector('#apirot_log_body').style.display!=='none'));
+ck('展开状态写回了设置', await p.evaluate(()=>
+  globalThis.SillyTavern.getContext().extensionSettings.apiRotator.logCollapsed===false));
+
+// 直接驱动官方拦截器攒日志。关掉轮询开关，这样只产生 hook/skip，
+// 不会改写全局 oai_settings，也就不会污染测试实例的酒馆配置。
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_clear').trigger('click'));
+await new Promise(r=>setTimeout(r,400));
+await p.evaluate(async ()=>{
+  const s=globalThis.SillyTavern.getContext().extensionSettings.apiRotator;
+  s.enabled=false;
+  for(let i=0;i<60;i++) await globalThis.apiRotatorInterceptor([],0,()=>{},'normal');
+});
+await new Promise(r=>setTimeout(r,1500));
+
+const lg = await p.evaluate(()=>({
+  rows:document.querySelectorAll('#apirot_log_list .apirot-log-row').length,
+  meta:document.querySelector('#apirot_log_meta')?.textContent||'',
+  count:document.querySelector('#apirot_log_count')?.textContent||'',
+  firstMsg:document.querySelector('#apirot_log_list .apirot-log-row .apirot-log-msg')?.textContent||'',
+  firstGen:document.querySelector('#apirot_log_list .apirot-log-row .apirot-log-gen')?.textContent||'',
+  stored:!!globalThis.localStorage.getItem('apiRotator_log_v1'),
+}));
+console.log('    面板行数:', lg.rows, '| 计数:', lg.count, '|', lg.meta);
+ck('产生了日志并显示计数', /\d+ 条/.test(lg.count)&&parseInt(lg.count)>=100, lg.count);
+ck('面板最多只渲染 100 条', lg.rows===100, '实际 '+lg.rows);
+ck('提示说明了「导出可看全部」', lg.meta.includes('只显示最近 100 条')&&lg.meta.includes('导出'), lg.meta);
+ck('每行带生成批次号', /^#\d+$/.test(lg.firstGen), lg.firstGen);
+ck('最新的在最上面（拦截器最后一次调用是 skip）', lg.firstMsg.includes('轮询未启用'), lg.firstMsg);
+ck('日志已写入 localStorage（刷新后可恢复）', lg.stored===true);
+
+// 筛选
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_filter').val('warn').trigger('change'));
+await new Promise(r=>setTimeout(r,400));
+const filtered = await p.evaluate(()=>({
+  rows:document.querySelectorAll('#apirot_log_list .apirot-log-row').length,
+  empty:document.querySelector('#apirot_log_list .apirot-empty')?.textContent||'',
+  setting:globalThis.SillyTavern.getContext().extensionSettings.apiRotator.logFilter,
+}));
+ck('筛「警告与错误」后 info 条目被滤掉', filtered.rows===0, '实际 '+filtered.rows);
+ck('筛选为空时给出提示', filtered.empty.includes('没有警告或错误'), filtered.empty);
+ck('筛选写回了设置', filtered.setting==='warn');
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_filter').val('all').trigger('change'));
+await new Promise(r=>setTimeout(r,400));
+
+// 改最大条数会立即裁剪
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_max').val('20').trigger('change'));
+await new Promise(r=>setTimeout(r,500));
+const trimmed = await p.evaluate(()=>({
+  rows:document.querySelectorAll('#apirot_log_list .apirot-log-row').length,
+  count:document.querySelector('#apirot_log_count')?.textContent||'',
+  setting:globalThis.SillyTavern.getContext().extensionSettings.apiRotator.logMax,
+}));
+ck('调小最大条数会立即裁掉多余的', trimmed.rows===20&&trimmed.count.startsWith('20'), JSON.stringify(trimmed));
+ck('最大条数写回了设置', trimmed.setting===20, String(trimmed.setting));
+
+// 关掉记录
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_enabled').prop('checked',false).trigger('change'));
+await p.evaluate(async ()=>{ await globalThis.apiRotatorInterceptor([],0,()=>{},'normal'); });
+await new Promise(r=>setTimeout(r,600));
+ck('关掉记录后不再新增条目', await p.evaluate(()=>
+  document.querySelectorAll('#apirot_log_list .apirot-log-row').length===20));
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_enabled').prop('checked',true).trigger('change'));
+
+// 清空
+await p.evaluate(()=>globalThis.jQuery('#apirot_log_clear').trigger('click'));
+await new Promise(r=>setTimeout(r,600));
+const cleared = await p.evaluate(()=>({
+  rows:document.querySelectorAll('#apirot_log_list .apirot-log-row').length,
+  empty:document.querySelector('#apirot_log_list .apirot-empty')?.textContent||'',
+  stored:globalThis.localStorage.getItem('apiRotator_log_v1'),
+}));
+ck('清空后没有条目', cleared.rows===0, '实际 '+cleared.rows);
+ck('清空后给出空状态提示', cleared.empty.includes('还没有记录'), cleared.empty);
+ck('清空同时清掉了本地存储', !cleared.stored, String(cleared.stored));
 
 ck('整个 UI 操作过程中没有报错', errs.length===0, errs.slice(0,3).join(' | '));
 console.log(`\n=== UI: ${pass} 通过 / ${fail} 失败 ===`);
